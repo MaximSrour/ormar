@@ -600,8 +600,8 @@ base_ormar_config.metadata.drop_all(base_ormar_config.engine)
 *  `fields(columns: Union[List, str, set, dict]) -> QuerySet`
 *  `exclude_fields(columns: Union[List, str, set, dict]) -> QuerySet`
 *  `order_by(columns:Union[List, str]) -> QuerySet`
-*  `values(fields: Union[List, str, Set, dict])`
-*  `values_list(fields: Union[List, str, Set, dict])`
+*  `values(fields: Union[List, str, set, dict])`
+*  `values_list(fields: Union[List, str, set, dict])`
 
 
 #### Relation types

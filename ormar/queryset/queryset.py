@@ -7,7 +7,6 @@ from typing import (
     List,
     Optional,
     Sequence,
-    Set,
     Tuple,
     Type,
     TypeVar,
@@ -448,7 +447,7 @@ class QuerySet(Generic[T]):
         return self.rebuild_self(prefetch_related=related)
 
     def fields(
-        self, columns: Union[List, str, Set, dict], _is_exclude: bool = False
+        self, columns: Union[List, str, set, dict], _is_exclude: bool = False
     ) -> "QuerySet[T]":
         """
         With `fields()` you can select subset of model columns to limit the data load.
@@ -458,7 +457,7 @@ class QuerySet(Generic[T]):
         as well as `select_related` and `prefetch_related`
         models (with nested notation).
 
-        You can select specified fields by passing a `str, List[str], Set[str] or
+        You can select specified fields by passing a `str, List[str], set[str] or
         dict` with nested definition.
 
         To include related models use notation
@@ -490,7 +489,7 @@ class QuerySet(Generic[T]):
         :param _is_exclude: flag if it's exclude or include operation
         :type _is_exclude: bool
         :param columns: columns to include
-        :type columns: Union[List, str, Set, dict]
+        :type columns: Union[List, str, set, dict]
         :return: QuerySet
         :rtype: QuerySet
         """
@@ -503,7 +502,7 @@ class QuerySet(Generic[T]):
 
         return self.rebuild_self(excludable=excludable)
 
-    def exclude_fields(self, columns: Union[List, str, Set, dict]) -> "QuerySet[T]":
+    def exclude_fields(self, columns: Union[List, str, set, dict]) -> "QuerySet[T]":
         """
         With `exclude_fields()` you can select subset of model columns that will
         be excluded to limit the data load.
@@ -526,7 +525,7 @@ class QuerySet(Generic[T]):
         if explicitly excluded.
 
         :param columns: columns to exclude
-        :type columns: Union[List, str, Set, dict]
+        :type columns: Union[List, str, set, dict]
         :return: QuerySet
         :rtype: QuerySet
         """
@@ -581,7 +580,7 @@ class QuerySet(Generic[T]):
 
     async def values(
         self,
-        fields: Union[List, str, Set, dict, None] = None,
+        fields: Union[List, str, set, dict, None] = None,
         exclude_through: bool = False,
         _as_dict: bool = True,
         _flatten: bool = False,
@@ -602,7 +601,7 @@ class QuerySet(Generic[T]):
         :param _as_dict: internal parameter if return dict or tuples
         :type _as_dict: bool
         :param fields: field name or list of field names to extract from db
-        :type fields:  Union[List, str, Set, dict]
+        :type fields:  Union[List, str, set, dict]
         """
         if fields:
             return await self.fields(columns=fields).values(
@@ -634,7 +633,7 @@ class QuerySet(Generic[T]):
 
     async def values_list(
         self,
-        fields: Union[List, str, Set, dict, None] = None,
+        fields: Union[List, str, set, dict, None] = None,
         flatten: bool = False,
         exclude_through: bool = False,
     ) -> List:
