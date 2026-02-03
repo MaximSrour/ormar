@@ -1,6 +1,6 @@
 import itertools
 import sqlite3
-from typing import TYPE_CHECKING, Any, ForwardRef, List, Type
+from typing import TYPE_CHECKING, Any, ForwardRef, Type
 
 import pydantic
 
@@ -121,7 +121,7 @@ def extract_annotations_and_default_vals(attrs: dict) -> tuple[dict, dict]:
     return attrs, model_fields
 
 
-def group_related_list(list_: List) -> dict:
+def group_related_list(list_: list) -> dict:
     """
     Translates the list of related strings into a dictionary.
     That way nested models are grouped to traverse them in a right order
@@ -134,9 +134,9 @@ def group_related_list(list_: List) -> dict:
     Result dictionary is sorted by length of the values and by key
 
     :param list_: list of related models used in select related
-    :type list_: List[str]
+    :type list_: list[str]
     :return: list converted to dictionary to avoid repetition and group nested models
-    :rtype: dict[str, List]
+    :rtype: dict[str, list]
     """
     result_dict: dict[str, Any] = dict()
     list_.sort(key=lambda x: x.split("__")[0])

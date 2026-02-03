@@ -1,8 +1,9 @@
-from typing import List, Optional
+from typing import Optional
 
 import databases
-import ormar
 import sqlalchemy
+
+import ormar
 
 DATABASE_URL = "sqlite:///test.db"
 
@@ -31,5 +32,6 @@ class Post(ormar.Model):
 
     id: int = ormar.Integer(primary_key=True)
     title: str = ormar.String(max_length=200)
-    categories: Optional[List[Category]] = ormar.ManyToMany(Category)
+    categories: Optional[list[Category]] = ormar.ManyToMany(Category)
+    author: Optional[Author] = ormar.ForeignKey(Author)
     author: Optional[Author] = ormar.ForeignKey(Author)

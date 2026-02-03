@@ -1,11 +1,12 @@
 from contextlib import asynccontextmanager
-from typing import List, Optional
+from typing import Optional
 
 import databases
-import ormar
 import sqlalchemy
 import uvicorn
 from fastapi import FastAPI
+
+import ormar
 
 DATABASE_URL = "sqlite:///test.db"
 
@@ -46,7 +47,7 @@ class Item(ormar.Model):
     category: Optional[Category] = ormar.ForeignKey(Category, nullable=True)
 
 
-@app.get("/items/", response_model=List[Item])
+@app.get("/items/", response_model=list[Item])
 async def get_items():
     items = await Item.objects.select_related("category").all()
     return items
@@ -80,4 +81,5 @@ async def delete_item(item_id: int, item: Item = None):
 
 if __name__ == "__main__":
     # to play with API run the script and visit http://127.0.0.1:8000/docs
+    uvicorn.run(app, host="127.0.0.1", port=8000)
     uvicorn.run(app, host="127.0.0.1", port=8000)
