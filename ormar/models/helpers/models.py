@@ -1,6 +1,6 @@
 import itertools
 import sqlite3
-from typing import TYPE_CHECKING, Any, ForwardRef, List, Tuple, Type
+from typing import TYPE_CHECKING, Any, ForwardRef, List, Type
 
 import pydantic
 
@@ -105,7 +105,7 @@ def check_required_config_parameters(new_model: Type["Model"]) -> None:
         )
 
 
-def extract_annotations_and_default_vals(attrs: dict) -> Tuple[dict, dict]:
+def extract_annotations_and_default_vals(attrs: dict) -> tuple[dict, dict]:
     """
     Extracts annotations from class namespace dict and triggers
     extraction of ormar model_fields.
@@ -113,7 +113,7 @@ def extract_annotations_and_default_vals(attrs: dict) -> Tuple[dict, dict]:
     :param attrs: namespace of the class created
     :type attrs: dict
     :return: namespace of the class updated, dict of extracted model_fields
-    :rtype: Tuple[dict, dict]
+    :rtype: tuple[dict, dict]
     """
     key = "__annotations__"
     attrs[key] = attrs.get(key, {})
