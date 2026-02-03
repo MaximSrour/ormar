@@ -4,7 +4,6 @@ from abc import abstractmethod
 from typing import (
     TYPE_CHECKING,
     Any,
-    Dict,
     List,
     Sequence,
     Tuple,
@@ -214,7 +213,7 @@ class LoadNode(Node):
         self.exclude_prefix: str = ""
         self.orders_by = orders_by
         self.use_alias = True
-        self.grouped_models: Dict[Any, List["Model"]] = dict()
+        self.grouped_models: dict[Any, List["Model"]] = dict()
         self.source_model = source_model
 
     async def load_data(self) -> None:
@@ -392,7 +391,7 @@ class LoadNode(Node):
         fields_to_exclude = self.relation_field.to.get_names_to_exclude(
             excludable=self.excludable, alias=self.exclude_prefix
         )
-        parsed_rows: Dict[Tuple, "Model"] = {}
+        parsed_rows: dict[Tuple, "Model"] = {}
         for row in self.rows:
             item = self.relation_field.to.extract_prefixed_table_columns(
                 item={},
@@ -407,13 +406,13 @@ class LoadNode(Node):
             )
             self.models.append(instance)
 
-    def _hash_item(self, item: Dict) -> Tuple:
+    def _hash_item(self, item: dict) -> Tuple:
         """
         Converts model dictionary into tuple to make it hashable and allow to use it
         as a dictionary key - used to ensure unique instances of related models.
 
         :param item: instance dictionary
-        :type item: Dict
+        :type item: dict
         :return: tuple out of model dictionary
         :rtype: Tuple
         """
@@ -533,8 +532,8 @@ class PrefetchQuery:
 
     def _build_load_tree(
         self,
-        select_dict: Dict,
-        prefetch_dict: Dict,
+        select_dict: dict,
+        prefetch_dict: dict,
         parent: Node,
         model: Type["Model"],
     ) -> None:
@@ -543,9 +542,9 @@ class PrefetchQuery:
         to be loaded through the prefetch query.
 
         :param select_dict: dictionary wth select query structure
-        :type select_dict: Dict
+        :type select_dict: dict
         :param prefetch_dict: dictionary with prefetch query structure
-        :type prefetch_dict: Dict
+        :type prefetch_dict: dict
         :param parent: parent Node
         :type parent: Node
         :param model: currently processed model

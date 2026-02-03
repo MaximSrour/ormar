@@ -1,6 +1,6 @@
 import itertools
 import sqlite3
-from typing import TYPE_CHECKING, Any, Dict, ForwardRef, List, Tuple, Type
+from typing import TYPE_CHECKING, Any, ForwardRef, List, Tuple, Type
 
 import pydantic
 
@@ -28,7 +28,7 @@ def is_field_an_forward_ref(field: "BaseField") -> bool:
 
 
 def populate_default_options_values(  # noqa: CCR001
-    new_model: Type["Model"], model_fields: Dict
+    new_model: Type["Model"], model_fields: dict
 ) -> None:
     """
     Sets all optional OrmarConfig values to its defaults
@@ -43,7 +43,7 @@ def populate_default_options_values(  # noqa: CCR001
     :param new_model: newly constructed Model
     :type new_model: Model class
     :param model_fields: dict of model fields
-    :type model_fields: Union[Dict[str, type], Dict]
+    :type model_fields: Union[dict[str, type], dict]
     """
     new_model.ormar_config.model_fields.update(model_fields)
     if any(is_field_an_forward_ref(field) for field in model_fields.values()):
@@ -105,15 +105,15 @@ def check_required_config_parameters(new_model: Type["Model"]) -> None:
         )
 
 
-def extract_annotations_and_default_vals(attrs: Dict) -> Tuple[Dict, Dict]:
+def extract_annotations_and_default_vals(attrs: dict) -> Tuple[dict, dict]:
     """
     Extracts annotations from class namespace dict and triggers
     extraction of ormar model_fields.
 
     :param attrs: namespace of the class created
-    :type attrs: Dict
+    :type attrs: dict
     :return: namespace of the class updated, dict of extracted model_fields
-    :rtype: Tuple[Dict, Dict]
+    :rtype: Tuple[dict, dict]
     """
     key = "__annotations__"
     attrs[key] = attrs.get(key, {})
@@ -121,7 +121,7 @@ def extract_annotations_and_default_vals(attrs: Dict) -> Tuple[Dict, Dict]:
     return attrs, model_fields
 
 
-def group_related_list(list_: List) -> Dict:
+def group_related_list(list_: List) -> dict:
     """
     Translates the list of related strings into a dictionary.
     That way nested models are grouped to traverse them in a right order
@@ -136,9 +136,9 @@ def group_related_list(list_: List) -> Dict:
     :param list_: list of related models used in select related
     :type list_: List[str]
     :return: list converted to dictionary to avoid repetition and group nested models
-    :rtype: Dict[str, List]
+    :rtype: dict[str, List]
     """
-    result_dict: Dict[str, Any] = dict()
+    result_dict: dict[str, Any] = dict()
     list_.sort(key=lambda x: x.split("__")[0])
     grouped = itertools.groupby(list_, key=lambda x: x.split("__")[0])
     for key, group in grouped:

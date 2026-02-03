@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, TypeVar, Union
+from typing import TYPE_CHECKING, Any, List, Optional, Set, TypeVar, Union
 
 import ormar.queryset  # noqa I100
 from ormar.exceptions import ModelPersistenceError, NoMatch
@@ -114,8 +114,8 @@ class Model(ModelRow):
         self,
         follow: bool = False,
         save_all: bool = False,
-        relation_map: Optional[Dict] = None,
-        exclude: Union[Set, Dict, None] = None,
+        relation_map: Optional[dict] = None,
+        exclude: Union[Set, dict, None] = None,
         update_count: int = 0,
         previous_model: Optional["Model"] = None,
         relation_field: Optional["ForeignKeyField"] = None,
@@ -140,9 +140,9 @@ class Model(ModelRow):
         :param previous_model: previous model from which method came
         :type previous_model: Model
         :param exclude: items to exclude during saving of relations
-        :type exclude: Union[Set, Dict]
+        :type exclude: Union[Set, dict]
         :param relation_map: map of relations to follow
-        :type relation_map: Dict
+        :type relation_map: dict
         :param save_all: flag if all models should be saved or only not saved ones
         :type save_all: bool
         :param follow: flag to trigger deep save -
@@ -303,7 +303,7 @@ class Model(ModelRow):
     async def load_all(
         self: T,
         follow: bool = False,
-        exclude: Union[List, str, Set, Dict, None] = None,
+        exclude: Union[List, str, Set, dict, None] = None,
         order_by: Union[List, str, None] = None,
     ) -> T:
         """
@@ -327,7 +327,7 @@ class Model(ModelRow):
         :raises NoMatch: If given pk is not found in database.
 
         :param exclude: related models to exclude
-        :type exclude: Union[List, str, Set, Dict]
+        :type exclude: Union[List, str, Set, dict]
         :param follow: flag to trigger deep save -
         by default only directly related models are saved
         with follow=True also related models of related models are saved
