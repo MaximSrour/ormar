@@ -34,4 +34,3 @@ class Post(ormar.Model):
     title: str = ormar.String(max_length=200)
     categories: Optional[list[Category]] = ormar.ManyToMany(Category)
     author: Optional[Author] = ormar.ForeignKey(Author)
-    author: Optional[Author] = ormar.ForeignKey(Author)
