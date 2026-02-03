@@ -2,11 +2,10 @@ from contextlib import asynccontextmanager
 from typing import Optional
 
 import databases
+import ormar
 import sqlalchemy
 import uvicorn
 from fastapi import FastAPI
-
-import ormar
 
 DATABASE_URL = "sqlite:///test.db"
 

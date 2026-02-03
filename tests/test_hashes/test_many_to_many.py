@@ -2,11 +2,11 @@ import sqlite3
 from typing import ForwardRef, Optional
 
 import asyncpg
+import ormar
 import pymysql
 import pytest
 import pytest_asyncio
 
-import ormar
 from tests.lifespan import init_tests
 from tests.settings import create_config
 
