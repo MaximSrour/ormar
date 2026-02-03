@@ -1,6 +1,6 @@
 import itertools
 import sqlite3
-from typing import TYPE_CHECKING, Any, ForwardRef, Type
+from typing import TYPE_CHECKING, Any, ForwardRef
 
 import pydantic
 
@@ -18,7 +18,7 @@ def is_field_an_forward_ref(field: "BaseField") -> bool:
     are ForwardRefs that needs to be updated before proceeding.
 
     :param field: model field to verify
-    :type field: Type[BaseField]
+    :type field: type[BaseField]
     :return: result of the check
     :rtype: bool
     """
@@ -28,7 +28,7 @@ def is_field_an_forward_ref(field: "BaseField") -> bool:
 
 
 def populate_default_options_values(  # noqa: CCR001
-    new_model: Type["Model"], model_fields: dict
+    new_model: type["Model"], model_fields: dict
 ) -> None:
     """
     Sets all optional OrmarConfig values to its defaults
@@ -66,7 +66,7 @@ class Connection(sqlite3.Connection):
         self.execute("PRAGMA foreign_keys=1;")
 
 
-def substitue_backend_pool_for_sqlite(new_model: Type["Model"]) -> None:
+def substitue_backend_pool_for_sqlite(new_model: type["Model"]) -> None:
     """
     Recreates Connection pool for sqlite3 with new factory that
     executes "PRAGMA foreign_keys=1; on initialization to enable foreign keys.
@@ -83,7 +83,7 @@ def substitue_backend_pool_for_sqlite(new_model: Type["Model"]) -> None:
         backend._pool = old_pool.__class__(backend._database_url, **backend._options)
 
 
-def check_required_config_parameters(new_model: Type["Model"]) -> None:
+def check_required_config_parameters(new_model: type["Model"]) -> None:
     """
     Verifies if ormar.Model has database and metadata set.
 
@@ -153,7 +153,7 @@ def group_related_list(list_: list) -> dict:
     return dict(sorted(result_dict.items(), key=lambda item: len(item[1])))
 
 
-def config_field_not_set(model: Type["Model"], field_name: str) -> bool:
+def config_field_not_set(model: type["Model"], field_name: str) -> bool:
     """
     Checks if field with given name is already present in model.OrmarConfig.
     Then check if it's set to something truthful
