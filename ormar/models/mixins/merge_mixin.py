@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING, Optional, cast
 
+import ormar_rust_utils
+
 import ormar
 from ormar.models.excludable import skip_ellipsis
 from ormar.queryset.utils import translate_list_to_dict
@@ -71,15 +73,22 @@ class MergeModelMixin:
         :rtype: list["Model"]
         """
         merged_rows: list["Model"] = []
-        grouped_instances: dict = {}
 
-        for model in result_rows:
-            grouped_instances.setdefault(model.pk, []).append(model)
-
-        for group in grouped_instances.values():
-            model = cls._recursive_add(group)[0]
-            object.__setattr__(model, "__ormar_excludable__", excludable)
-            merged_rows.append(model)
+        if result_rows:
+            pks = [model.pk for model in result_rows]
+            index_groups = ormar_rust_utils.group_by_pk(pks)
+            for group_indices in index_groups:
+                # Single-row groups are the common case for queries with no
+                # parent duplication (``Model.objects.all()`` and similar);
+                # skip the wrapper list and the no-op ``_recursive_add`` call.
+                if len(group_indices) == 1:
+                    model = result_rows[group_indices[0]]
+                else:
+                    model = cls._recursive_add([result_rows[i] for i in group_indices])[
+                        0
+                    ]
+                object.__setattr__(model, "__ormar_excludable__", excludable)
+                merged_rows.append(model)
 
         return merged_rows
 
@@ -166,19 +175,26 @@ class MergeModelMixin:
         :return: merged list of models
         :rtype: list[Model]
         """
-        value_to_set = [x for x in other_value]
-        for cur_field in current_field:
-            if cur_field in other_value:
-                old_value = next((x for x in other_value if x == cur_field), None)
-                new_val = cls.merge_two_instances(
-                    cur_field,
-                    cast("Model", old_value),
-                    relation_map=cast(
-                        Optional[dict],
-                        skip_ellipsis(relation_map, field_name, default=dict()),
-                    ),
+        current_pks = [getattr(m, "pk", None) for m in current_field]
+        other_pks = [getattr(m, "pk", None) for m in other_value]
+        plan = ormar_rust_utils.plan_merge_items_lists(current_pks, other_pks)
+        value_to_set = list(other_value)
+        nested_relation_map = cast(
+            Optional[dict],
+            skip_ellipsis(relation_map, field_name, default=dict()),
+        )
+        for cur_idx, other_idx in plan:
+            cur_item = current_field[cur_idx]
+            if other_idx is not None:
+                # ``other_idx`` is the destination slot the Rust planner
+                # already identified — write the merged instance there in
+                # place rather than rebuilding ``value_to_set`` with a pk
+                # filter (which was O(N) per match).
+                value_to_set[other_idx] = cls.merge_two_instances(
+                    cur_item,
+                    cast("Model", other_value[other_idx]),
+                    relation_map=nested_relation_map,
                 )
-                value_to_set = [x for x in value_to_set if x != cur_field] + [new_val]
             else:
-                value_to_set.append(cur_field)
+                value_to_set.append(cur_item)
         return value_to_set

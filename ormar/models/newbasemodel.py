@@ -114,6 +114,10 @@ class NewBaseModel(pydantic.BaseModel, ModelTableProxy, metaclass=ModelMetaclass
         _json_fields: set
         _bytes_fields: set
         _onupdate_fields: set
+        _pydantic_field_names: Optional[frozenset[str]]
+        _extra_is_ignore: Optional[bool]
+        _allowed_kwarg_names: Optional[frozenset[str]]
+        _relation_field_names: Optional[frozenset[str]]
         ormar_config: OrmarConfig
 
     # noinspection PyMissingConstructor
@@ -223,14 +227,14 @@ class NewBaseModel(pydantic.BaseModel, ModelTableProxy, metaclass=ModelMetaclass
 
     @classmethod
     def _construct_with_excluded(
-        cls, excluded: set[str], **kwargs: Any
+        cls, excluded: AbstractSet[str], **kwargs: Any
     ) -> typing_extensions.Self:
         """
         Constructs model instance and nullifies excluded fields post-construction.
         Used when loading partial results from the database.
 
-        :param excluded: set of field names to nullify after construction
-        :type excluded: set[str]
+        :param excluded: collection of field names to nullify after construction
+        :type excluded: AbstractSet[str]
         :param kwargs: field values for the model
         :type kwargs: Any
         :return: constructed model instance
@@ -320,7 +324,11 @@ class NewBaseModel(pydantic.BaseModel, ModelTableProxy, metaclass=ModelMetaclass
 
         def _update_cache(relations: list[Relation], recurse: bool = True) -> None:
             for relation in relations:
-                relation_proxy = relation.get()
+                # Read ``related_models`` directly (rather than calling
+                # ``relation.get()``) so an un-materialized reverse/m2m
+                # proxy stays un-materialized — there is nothing in an
+                # empty proxy to migrate hashes for.
+                relation_proxy = relation.related_models
 
                 if hasattr(relation_proxy, "update_cache"):
                     relation_proxy.update_cache(prev_hash, new_hash)  # type: ignore
@@ -374,71 +382,90 @@ class NewBaseModel(pydantic.BaseModel, ModelTableProxy, metaclass=ModelMetaclass
         :return: modified kwargs
         :rtype: tuple[dict, dict]
         """
-        property_fields = self.ormar_config.property_fields
-        model_fields = self.ormar_config.model_fields
-        pydantic_fields = set(self.__class__.model_fields.keys())
+        cls = type(self)
+        config = cls.ormar_config
+        model_fields = config.model_fields
+
+        pydantic_fields = cls._pydantic_field_names
+        if pydantic_fields is None:
+            pydantic_fields = frozenset(cls.model_fields.keys())
+            cls._pydantic_field_names = pydantic_fields
 
         # remove property fields
-        for prop_filed in property_fields:
-            kwargs.pop(prop_filed, None)
+        for prop_field in config.property_fields:
+            kwargs.pop(prop_field, None)
 
         if "pk" in kwargs:
-            kwargs[self.ormar_config.pkname] = kwargs.pop("pk")
+            kwargs[config.pkname] = kwargs.pop("pk")
 
         # extract through fields
-        through_tmp_dict = dict()
-        for field_name in self.extract_through_names():
-            through_tmp_dict[field_name] = kwargs.pop(field_name, None)
+        through_tmp_dict = {
+            field_name: kwargs.pop(field_name, None)
+            for field_name in self.extract_through_names()
+        }
 
-        kwargs = self._remove_extra_parameters_if_they_should_be_ignored(
-            kwargs=kwargs, model_fields=model_fields, pydantic_fields=pydantic_fields
-        )
-        try:
-            new_kwargs: dict[str, Any] = {
-                k: self._convert_to_bytes(
-                    k,
-                    self._convert_json(
-                        k,
-                        (
-                            model_fields[k].expand_relationship(
-                                v, self, to_register=False
-                            )
-                            if k in model_fields
-                            else (v if k in pydantic_fields else model_fields[k])
-                        ),
-                    ),
-                )
-                for k, v in kwargs.items()
-            }
-        except KeyError as e:
-            raise ModelError(
-                f"Unknown field '{e.args[0]}' for model {self.get_name(lower=False)}"
+        extra_is_ignore = cls._extra_is_ignore
+        if extra_is_ignore is None:
+            extra_is_ignore = config.extra == Extra.ignore
+            cls._extra_is_ignore = extra_is_ignore
+
+        if extra_is_ignore:
+            allowed = cls._allowed_kwarg_names
+            if allowed is None:
+                allowed = frozenset(model_fields.keys()) | pydantic_fields
+                cls._allowed_kwarg_names = allowed
+            kwargs = {k: v for k, v in kwargs.items() if k in allowed}
+
+        json_fields = cls._json_fields
+        bytes_fields = cls._bytes_fields
+
+        # ``relation_field_names`` is the disjoint set of fields that need
+        # ``expand_relationship``; everything else can skip that call. Cached
+        # on the class on first access — same pattern as ``_pydantic_field_names``.
+        relation_field_names = getattr(cls, "_relation_field_names", None)
+        if relation_field_names is None:
+            relation_field_names = frozenset(
+                name for name, f in model_fields.items() if f.is_relation
             )
+            cls._relation_field_names = relation_field_names  # type: ignore[attr-defined]
 
+        has_json = bool(json_fields)
+        has_bytes = bool(bytes_fields)
+        has_relations = bool(relation_field_names)
+
+        # Validate unknown kwargs up front so the dispatch loop doesn't need
+        # a per-iteration check. ``extra=ignore`` already filtered above, so
+        # in that branch no unknowns can remain.
+        if not extra_is_ignore:
+            for k in kwargs:
+                if k not in model_fields and k not in pydantic_fields:
+                    try:
+                        model_fields[k]
+                    except KeyError as e:
+                        raise ModelError(
+                            f"Unknown field '{e.args[0]}' for model "
+                            f"{self.get_name(lower=False)}"
+                        )
+
+        if not has_json and not has_bytes and not has_relations:
+            # Fast path — plain model with no relations/json/bytes. The
+            # validation pass above is the only per-key cost; the value
+            # copy is a single C-level dict construction.
+            return dict(kwargs), through_tmp_dict
+
+        new_kwargs: dict[str, Any] = {}
+        for k, v in kwargs.items():
+            if k in relation_field_names:
+                v = model_fields[k].expand_relationship(v, self, to_register=False)
+            if has_json and k in json_fields:
+                v = encode_json(v)
+            if has_bytes and k in bytes_fields and v is not None:
+                v = decode_bytes(
+                    value=v,
+                    represent_as_string=model_fields[k].represent_as_base64_str,
+                )
+            new_kwargs[k] = v
         return new_kwargs, through_tmp_dict
-
-    def _remove_extra_parameters_if_they_should_be_ignored(
-        self, kwargs: dict, model_fields: dict, pydantic_fields: set
-    ) -> dict:
-        """
-        Removes the extra fields from kwargs if they should be ignored.
-
-        :param kwargs: passed arguments
-        :type kwargs: dict
-        :param model_fields: dictionary of model fields
-        :type model_fields: dict
-        :param pydantic_fields: set of pydantic fields names
-        :type pydantic_fields: set
-        :return: dict without extra fields
-        :rtype: dict
-        """
-        if self.ormar_config.extra == Extra.ignore:
-            kwargs = {
-                k: v
-                for k, v in kwargs.items()
-                if k in model_fields or k in pydantic_fields
-            }
-        return kwargs
 
     def _initialize_internal_attributes(self) -> None:
         """
@@ -470,18 +497,26 @@ class NewBaseModel(pydantic.BaseModel, ModelTableProxy, metaclass=ModelMetaclass
         return super().__eq__(other)  # pragma no cover
 
     def __hash__(self) -> int:
-        if getattr(self, "__cached_hash__", None) is not None:
-            return self.__cached_hash__ or 0
+        cached = getattr(self, "__cached_hash__", None)
+        if cached is not None:
+            return cached
 
-        if self.pk is not None:
-            ret = hash(str(self.pk) + self.__class__.__name__)
+        pk = self.pk
+        cls = type(self)
+        if pk is not None:
+            # ``type(self)`` hashes by identity in CPython, so ``hash((pk, cls))``
+            # is uniqueness-equivalent to the original ``str(pk) + cls.__name__``
+            # without two string allocations per call. This is the hot path —
+            # everything that goes through ``_relation_cache`` is keyed on
+            # saved-pk Models.
+            ret = hash((pk, cls))
         else:
-            vals = {
-                k: v
-                for k, v in self.__dict__.items()
-                if k not in self.extract_related_names()
-            }
-            ret = hash(str(vals) + self.__class__.__name__)
+            # Unsaved models can hold list/dict values in ``__dict__`` (json
+            # fields, reverse-relation slots), so we still ``str(vals)`` to
+            # keep the result hashable. Cold path; not perf-critical.
+            related = self.extract_related_names()
+            vals = {k: v for k, v in self.__dict__.items() if k not in related}
+            ret = hash((str(vals), cls))
 
         object.__setattr__(self, "__cached_hash__", ret)
         return ret
@@ -489,18 +524,23 @@ class NewBaseModel(pydantic.BaseModel, ModelTableProxy, metaclass=ModelMetaclass
     def __same__(self, other: "NewBaseModel") -> bool:
         """
         Used by __eq__, compares other model to this model.
-        Compares:
-        * _orm_ids,
-        * primary key values if it's set
-        * dictionary of own fields (excluding relations)
+
+        Saved models (both with pk) compare directly by ``(pk, type)`` to
+        skip the hash-cache fill on the *other* side. Unsaved/mixed states
+        fall through to the original hash-equality semantics.
+
         :param other: model to compare to
         :type other: NewBaseModel
         :return: result of comparison
         :rtype: bool
         """
-        if (self.pk is None and other.pk is not None) or (
-            self.pk is not None and other.pk is None
-        ):
+        if type(self) is not type(other):
+            return False  # pragma: no cover
+        self_pk = self.pk
+        other_pk = other.pk
+        if self_pk is not None and other_pk is not None:
+            return self_pk == other_pk
+        if (self_pk is None) != (other_pk is None):
             return False
         else:
             return hash(self) == other.__hash__()
@@ -515,10 +555,13 @@ class NewBaseModel(pydantic.BaseModel, ModelTableProxy, metaclass=ModelMetaclass
         :return: name of the model
         :rtype: str
         """
-        name = cls.__name__
         if lower:
-            name = name.lower()
-        return name
+            try:
+                return cls._lower_name  # type: ignore[attr-defined]
+            except AttributeError:
+                cls._lower_name = cls.__name__.lower()  # type: ignore[attr-defined]
+                return cls._lower_name  # type: ignore[attr-defined]
+        return cls.__name__
 
     @property
     def pk_column(self) -> sqlalchemy.Column:
@@ -1226,28 +1269,6 @@ class NewBaseModel(pydantic.BaseModel, ModelTableProxy, metaclass=ModelMetaclass
             setattr(self, key, value)
         return self
 
-    def _convert_to_bytes(
-        self, column_name: str, value: Any
-    ) -> Union[str, builtins.dict]:
-        """
-        Converts value to bytes from string
-
-        :param column_name: name of the field
-        :type column_name: str
-        :param value: value fo the field
-        :type value: Any
-        :return: converted value if needed, else original value
-        :rtype: Any
-        """
-        if column_name not in self._bytes_fields:
-            return value
-        field = self.ormar_config.model_fields[column_name]
-        if value is not None:
-            value = decode_bytes(
-                value=value, represent_as_string=field.represent_as_base64_str
-            )
-        return value
-
     def _convert_bytes_to_str(
         self, column_name: str, value: Any
     ) -> Union[str, builtins.dict]:
@@ -1271,23 +1292,6 @@ class NewBaseModel(pydantic.BaseModel, ModelTableProxy, metaclass=ModelMetaclass
         ):
             return base64.b64encode(value).decode()
         return value
-
-    def _convert_json(
-        self, column_name: str, value: Any
-    ) -> Union[str, builtins.dict, None]:
-        """
-        Converts value to/from json if needed (for Json columns).
-
-        :param column_name: name of the field
-        :type column_name: str
-        :param value: value fo the field
-        :type value: Any
-        :return: converted value if needed, else original value
-        :rtype: Any
-        """
-        if column_name not in self._json_fields:
-            return value
-        return encode_json(value)
 
     def _extract_own_model_fields(self) -> builtins.dict:
         """
